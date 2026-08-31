@@ -13,12 +13,12 @@ export default async function BoardPage() {
     redirect("/");
   }
 
-  const tasks = await listTasks(user.uid);
+  const tasks: Awaited<ReturnType<typeof listTasks>> = await listTasks(user.uid);
 
   return (
     <main className="flex min-h-screen flex-col bg-zinc-950">
       <Board
-        initialTasks={tasks.map((task) => ({
+        initialTasks={tasks.map((task: Awaited<ReturnType<typeof listTasks>>[number]) => ({
           ...task,
           structure: task.structure as "STACK" | "QUEUE",
           createdAt: task.createdAt.toISOString(),

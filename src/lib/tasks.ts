@@ -2,26 +2,30 @@ import { prisma } from "@/lib/prisma";
 
 export const STRUCTURES = ["STACK", "QUEUE"] as const;
 export type Structure = (typeof STRUCTURES)[number];
+export type TaskRecord = Awaited<ReturnType<typeof prisma.task.findMany>>[number];
 
 export function isStructure(value: unknown): value is Structure {
   return value === "STACK" || value === "QUEUE";
 }
 
-export async function listTasks(userId = "local-user") {
+export async function listTasks(userId = "local-user"): Promise<TaskRecord[]> {
   return prisma.task.findMany({
     where: { userId },
     orderBy: [{ structure: "asc" }, { position: "asc" }],
   });
 }
 
-export async function reindex(structure: Structure, userId = "local-user") {
-  const tasks = await prisma.task.findMany({
+export async function reindex(
+  structure: Structure,
+  userId = "local-user",
+): Promise<void> {
+  const tasks: TaskRecord[] = await prisma.task.findMany({
     where: { structure, userId },
     orderBy: { position: "asc" },
   });
 
   await prisma.$transaction(
-    tasks.map((task, index) =>
+    tasks.map((task: TaskRecord, index: number) =>
       prisma.task.update({
         where: { id: task.id },
         data: { position: index },
@@ -99,21 +103,21 @@ export async function reorder(
   structure: Structure,
   orderedIds: string[],
   userId = "local-user",
-) {
+): Promise<void> {
   const existing = await prisma.task.findMany({
     where: { structure, userId },
     select: { id: true },
   });
-  const existingIds = new Set(existing.map((task) => task.id));
+  const existingIds = new Set<string>(existing.map((task: { id: string }) => task.id));
   if (
     orderedIds.length !== existingIds.size ||
-    orderedIds.some((id) => !existingIds.has(id))
+    orderedIds.some((id: string) => !existingIds.has(id))
   ) {
     throw new Error("Order does not match current tasks");
   }
 
   await prisma.$transaction(
-    orderedIds.map((id, index) =>
+    orderedIds.map((id: string, index: number) =>
       prisma.task.update({
         where: { id },
         data: { position: index },
