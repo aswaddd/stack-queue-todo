@@ -8,7 +8,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#3f2e15_0%,_#09090b_42%)] px-4">
+    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950/80 p-8 shadow-2xl backdrop-blur">
         <p className="text-xs font-semibold tracking-[0.28em] text-amber-300/80 uppercase">
           Personal

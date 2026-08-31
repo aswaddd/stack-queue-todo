@@ -112,11 +112,6 @@ export function StructurePanel({
         </button>
       </form>
 
-      <div className="mb-3 flex justify-between text-[11px] font-semibold tracking-widest text-zinc-500 uppercase">
-        <span>{isStack ? "Top" : "Front"}</span>
-        <span>{isStack ? "Bottom" : "Back"}</span>
-      </div>
-
       {mounted ? (
         <DndContext
           sensors={sensors}
