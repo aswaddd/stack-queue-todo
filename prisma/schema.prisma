@@ -13,6 +13,7 @@ model Task {
   createdAt DateTime @default(now())
   structure String
   position  Int
+  userId    String   @default("local-user")
 
-  @@index([structure, position])
+  @@index([userId, structure, position])
 }

@@ -3,6 +3,11 @@ import { cookies } from "next/headers";
 
 const COOKIE = "sq_session";
 
+export type SessionUser = {
+  uid: string;
+  email?: string;
+};
+
 function secret() {
   const value = process.env.AUTH_SECRET;
   if (!value) {
@@ -11,8 +16,11 @@ function secret() {
   return new TextEncoder().encode(value);
 }
 
-export async function createSession() {
-  const token = await new SignJWT({ ok: true })
+export async function createSession(user: SessionUser = { uid: "local-user" }) {
+  const token = await new SignJWT({
+    uid: user.uid,
+    email: user.email ?? "",
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
@@ -33,16 +41,23 @@ export async function clearSession() {
   jar.delete(COOKIE);
 }
 
-export async function isLoggedIn() {
+export async function getCurrentUser(): Promise<SessionUser | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
-  if (!token) return false;
+  if (!token) return null;
+
   try {
-    await jwtVerify(token, secret());
-    return true;
+    const { payload } = await jwtVerify(token, secret());
+    const uid = typeof payload.uid === "string" ? payload.uid : "local-user";
+    const email = typeof payload.email === "string" ? payload.email : "";
+    return { uid, email };
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function isLoggedIn() {
+  return (await getCurrentUser()) !== null;
 }
 
 export function passwordMatches(input: string) {

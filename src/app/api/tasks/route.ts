@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 import { addTask, isStructure, listTasks } from "@/lib/tasks";
 
 export async function GET() {
-  const tasks = await listTasks();
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tasks = await listTasks(user.uid);
   return NextResponse.json({ tasks });
 }
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await request.json()) as {
     structure?: unknown;
     text?: unknown;
@@ -15,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
   try {
-    const task = await addTask(body.structure, body.text);
+    const task = await addTask(body.structure, body.text, user.uid);
     return NextResponse.json({ task });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not add";

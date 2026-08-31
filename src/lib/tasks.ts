@@ -7,15 +7,16 @@ export function isStructure(value: unknown): value is Structure {
   return value === "STACK" || value === "QUEUE";
 }
 
-export async function listTasks() {
+export async function listTasks(userId = "local-user") {
   return prisma.task.findMany({
+    where: { userId },
     orderBy: [{ structure: "asc" }, { position: "asc" }],
   });
 }
 
-export async function reindex(structure: Structure) {
+export async function reindex(structure: Structure, userId = "local-user") {
   const tasks = await prisma.task.findMany({
-    where: { structure },
+    where: { structure, userId },
     orderBy: { position: "asc" },
   });
 
@@ -29,7 +30,11 @@ export async function reindex(structure: Structure) {
   );
 }
 
-export async function addTask(structure: Structure, text: string) {
+export async function addTask(
+  structure: Structure,
+  text: string,
+  userId = "local-user",
+) {
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error("Task text is required");
@@ -37,36 +42,41 @@ export async function addTask(structure: Structure, text: string) {
 
   if (structure === "STACK") {
     await prisma.task.updateMany({
-      where: { structure: "STACK" },
+      where: { userId, structure: "STACK" },
       data: { position: { increment: 1 } },
     });
     return prisma.task.create({
-      data: { text: trimmed, structure, position: 0 },
+      data: { text: trimmed, structure, position: 0, userId },
     });
   }
 
   const last = await prisma.task.aggregate({
-    where: { structure: "QUEUE" },
+    where: { userId, structure: "QUEUE" },
     _max: { position: true },
   });
   const position = (last._max.position ?? -1) + 1;
   return prisma.task.create({
-    data: { text: trimmed, structure, position },
+    data: { text: trimmed, structure, position, userId },
   });
 }
 
-export async function removeEnd(structure: Structure) {
+export async function removeEnd(structure: Structure, userId = "local-user") {
   const task = await prisma.task.findFirst({
-    where: { structure },
+    where: { structure, userId },
     orderBy: { position: "asc" },
   });
   if (!task) return null;
   await prisma.task.delete({ where: { id: task.id } });
-  await reindex(structure);
+  await reindex(structure, userId);
   return task;
 }
 
-export async function updateTask(id: string, text: string) {
+export async function updateTask(id: string, text: string, userId = "local-user") {
+  const existing = await prisma.task.findUnique({ where: { id } });
+  if (!existing || existing.userId !== userId) {
+    throw new Error("Task not found");
+  }
+
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error("Task text is required");
@@ -77,17 +87,21 @@ export async function updateTask(id: string, text: string) {
   });
 }
 
-export async function deleteTask(id: string) {
+export async function deleteTask(id: string, userId = "local-user") {
   const existing = await prisma.task.findUnique({ where: { id } });
-  if (!existing) return null;
+  if (!existing || existing.userId !== userId) return null;
   await prisma.task.delete({ where: { id } });
-  await reindex(existing.structure as Structure);
+  await reindex(existing.structure as Structure, existing.userId);
   return existing;
 }
 
-export async function reorder(structure: Structure, orderedIds: string[]) {
+export async function reorder(
+  structure: Structure,
+  orderedIds: string[],
+  userId = "local-user",
+) {
   const existing = await prisma.task.findMany({
-    where: { structure },
+    where: { structure, userId },
     select: { id: true },
   });
   const existingIds = new Set(existing.map((task) => task.id));

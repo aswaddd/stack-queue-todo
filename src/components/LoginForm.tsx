@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 export function LoginForm() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -16,11 +17,11 @@ export function LoginForm() {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email, password }),
     });
     setPending(false);
     if (!response.ok) {
-      setError("Wrong password.");
+      setError("Invalid email or password.");
       return;
     }
     router.push("/board");
@@ -29,6 +30,19 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-4">
+      <label className="flex flex-col gap-2 text-sm text-zinc-400">
+        Email
+        <input
+          type="email"
+          name="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+          className="rounded-xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-base text-zinc-100 outline-none ring-amber-400/40 focus:ring-2"
+        />
+      </label>
+
       <label className="flex flex-col gap-2 text-sm text-zinc-400">
         Password
         <input
