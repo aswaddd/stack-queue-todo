@@ -11,10 +11,9 @@ import {
 import {
   SortableContext,
   arrayMove,
-  horizontalListSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { TaskCard } from "@/components/TaskCard";
 import type { Structure, Task } from "@/lib/types";
 
@@ -37,9 +36,14 @@ export function StructurePanel({
 }: Props) {
   const isStack = structure === "STACK";
   const [draft, setDraft] = useState("");
+  const [mounted, setMounted] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -61,10 +65,8 @@ export function StructurePanel({
 
   return (
     <section
-      className={`flex min-h-[32rem] flex-col rounded-3xl border p-5 ${
-        isStack
-          ? "border-amber-300/20 bg-gradient-to-b from-amber-950/40 to-zinc-950"
-          : "border-cyan-300/20 bg-gradient-to-b from-cyan-950/40 to-zinc-950"
+      className={`flex min-h-[32rem] flex-col rounded-3xl border bg-zinc-950/60 p-5 ${
+        isStack ? "border-amber-300/20" : "border-cyan-300/20"
       }`}
     >
       <header className="mb-4">
@@ -115,58 +117,76 @@ export function StructurePanel({
         <span>{isStack ? "Bottom" : "Back"}</span>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={onDragEnd}
-      >
-        <SortableContext
-          items={tasks.map((task) => task.id)}
-          strategy={
-            isStack
-              ? verticalListSortingStrategy
-              : horizontalListSortingStrategy
-          }
+      {mounted ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
         >
-          <div
-            className={
-              isStack
-                ? "flex flex-1 flex-col gap-2"
-                : "flex flex-1 flex-row flex-wrap content-start gap-2"
-            }
+          <SortableContext
+            items={tasks.map((task) => task.id)}
+            strategy={verticalListSortingStrategy}
           >
-            {tasks.length === 0 ? (
-              <div className="flex min-h-40 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-zinc-500">
-                {isStack ? "Stack is empty" : "Queue is empty"}
-              </div>
-            ) : (
-              tasks.map((task, index) => (
-                <div
-                  key={task.id}
-                  className={isStack ? "w-full" : "min-w-[14rem] flex-1"}
-                >
-                  <TaskCard
-                    task={task}
-                    accent={isStack ? "stack" : "queue"}
-                    badge={
-                      index === 0
-                        ? isStack
-                          ? "top"
-                          : "front"
-                        : index === tasks.length - 1
-                          ? isStack
-                            ? "bottom"
-                            : "back"
-                          : undefined
-                    }
-                    onOpen={onOpen}
-                  />
+            <div className="flex flex-1 flex-col gap-2">
+              {tasks.length === 0 ? (
+                <div className="flex min-h-40 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-zinc-500">
+                  {isStack ? "Stack is empty" : "Queue is empty"}
                 </div>
-              ))
-            )}
-          </div>
-        </SortableContext>
-      </DndContext>
+              ) : (
+                tasks.map((task, index) => (
+                  <div key={task.id} className="w-full">
+                    <TaskCard
+                      task={task}
+                      accent={isStack ? "stack" : "queue"}
+                      badge={
+                        index === 0
+                          ? isStack
+                            ? "top"
+                            : "front"
+                          : index === tasks.length - 1
+                            ? isStack
+                              ? "bottom"
+                              : "back"
+                            : undefined
+                      }
+                      onOpen={onOpen}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <div className="flex flex-1 flex-col gap-2">
+          {tasks.length === 0 ? (
+            <div className="flex min-h-40 flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-zinc-500">
+              {isStack ? "Stack is empty" : "Queue is empty"}
+            </div>
+          ) : (
+            tasks.map((task, index) => (
+              <div key={task.id} className="w-full">
+                <TaskCard
+                  task={task}
+                  accent={isStack ? "stack" : "queue"}
+                  badge={
+                    index === 0
+                      ? isStack
+                        ? "top"
+                        : "front"
+                      : index === tasks.length - 1
+                        ? isStack
+                          ? "bottom"
+                          : "back"
+                        : undefined
+                  }
+                  onOpen={onOpen}
+                />
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }

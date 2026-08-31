@@ -1,5 +1,11 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  getAuth,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+} from "firebase/auth";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -28,5 +34,29 @@ export async function signInWithFirebase(email: string, password: string) {
     password,
   );
 
+  return credential.user;
+}
+
+export async function signUpWithFirebase(email: string, password: string) {
+  if (!firebaseAuth) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const credential = await createUserWithEmailAndPassword(
+    firebaseAuth,
+    email,
+    password,
+  );
+
+  return credential.user;
+}
+
+export async function signInWithGoogleFirebase() {
+  if (!firebaseAuth) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const provider = new GoogleAuthProvider();
+  const credential = await signInWithPopup(firebaseAuth, provider);
   return credential.user;
 }
