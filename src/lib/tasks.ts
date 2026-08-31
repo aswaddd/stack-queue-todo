@@ -4,6 +4,14 @@ export const STRUCTURES = ["STACK", "QUEUE"] as const;
 export type Structure = (typeof STRUCTURES)[number];
 export type TaskRecord = Awaited<ReturnType<typeof prisma.task.findMany>>[number];
 
+export type BoardTaskInput = {
+  id?: string;
+  text: string;
+  structure: Structure;
+  position: number;
+  createdAt?: string;
+};
+
 export function isStructure(value: unknown): value is Structure {
   return value === "STACK" || value === "QUEUE";
 }
@@ -12,6 +20,61 @@ export async function listTasks(userId = "local-user"): Promise<TaskRecord[]> {
   return prisma.task.findMany({
     where: { userId },
     orderBy: [{ structure: "asc" }, { position: "asc" }],
+  });
+}
+
+export async function replaceTasks(
+  tasks: BoardTaskInput[],
+  userId = "local-user",
+): Promise<void> {
+  const normalized = tasks.map((task, index) => {
+    const trimmed = task.text.trim();
+    if (!trimmed) {
+      throw new Error("Task text is required");
+    }
+    if (!isStructure(task.structure)) {
+      throw new Error("Invalid structure");
+    }
+
+    const safePosition = Number.isFinite(task.position) ? task.position : index;
+
+    return {
+      id: task.id ?? crypto.randomUUID(),
+      text: trimmed,
+      structure: task.structure,
+      position: safePosition,
+      createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
+    };
+  });
+
+  const records = [
+    ...normalized
+      .filter((task) => task.structure === "STACK")
+      .sort((a, b) => a.position - b.position)
+      .map((task, index) => ({ ...task, position: index })),
+    ...normalized
+      .filter((task) => task.structure === "QUEUE")
+      .sort((a, b) => a.position - b.position)
+      .map((task, index) => ({ ...task, position: index })),
+  ];
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.deleteMany({ where: { userId } });
+
+    if (records.length === 0) {
+      return;
+    }
+
+    await tx.task.createMany({
+      data: records.map((task) => ({
+        id: task.id,
+        text: task.text,
+        structure: task.structure,
+        position: task.position,
+        userId,
+        createdAt: task.createdAt,
+      })),
+    });
   });
 }
 

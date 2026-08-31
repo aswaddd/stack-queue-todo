@@ -13,9 +13,12 @@ export function Board({ initialTasks }: Props) {
   const [tasks, setTasks] = useState(initialTasks);
   const [selected, setSelected] = useState<Task | null>(null);
   const [error, setError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setTasks(initialTasks);
+    setDirty(false);
   }, [initialTasks]);
 
   const stacked = useMemo(
@@ -35,34 +38,74 @@ export function Board({ initialTasks }: Props) {
     }
     const data = (await response.json()) as { tasks: Task[] };
     setTasks(data.tasks);
+    setDirty(false);
   }, []);
 
-  async function add(structure: Structure, text: string) {
+  const persist = useCallback(async () => {
+    const payload = [
+      ...stacked.map((task, position) => ({ ...task, position, structure: "STACK" as const })),
+      ...queued.map((task, position) => ({ ...task, position, structure: "QUEUE" as const })),
+    ];
+
+    setSaving(true);
     setError("");
+
     const response = await fetch("/api/tasks", {
-      method: "POST",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ structure, text }),
+      body: JSON.stringify({ tasks: payload }),
     });
+
+    setSaving(false);
     if (!response.ok) {
-      setError("Could not add that task.");
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setError(data?.error ?? "Could not save the board.");
       return;
     }
+
     await refresh();
+  }, [queued, refresh, stacked]);
+
+  async function add(structure: Structure, text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    setError("");
+    const nextTask: Task = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`,
+      text: trimmed,
+      createdAt: new Date().toISOString(),
+      structure,
+      position: 0,
+    };
+
+    setTasks((current) => {
+      const sameStructure = current.filter((task) => task.structure === structure);
+      const otherStructure = current.filter((task) => task.structure !== structure);
+      if (structure === "STACK") {
+        return [...otherStructure, nextTask, ...sameStructure];
+      }
+      return [...otherStructure, ...sameStructure, nextTask];
+    });
+    setDirty(true);
   }
 
   async function pop(structure: Structure) {
     setError("");
-    const response = await fetch("/api/tasks/pop", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ structure }),
+    setTasks((current) => {
+      const sameStructure = current.filter((task) => task.structure === structure);
+      if (sameStructure.length === 0) {
+        return current;
+      }
+
+      const [, ...rest] = sameStructure;
+      const others = current.filter((task) => task.structure !== structure);
+      return [...others, ...rest];
     });
-    if (!response.ok) {
-      setError("Nothing to remove.");
-      return;
-    }
-    await refresh();
+    setDirty(true);
   }
 
   async function reorder(structure: Structure, orderedIds: string[]) {
@@ -72,46 +115,32 @@ export function Board({ initialTasks }: Props) {
         current.filter((task) => task.structure === structure).map((task) => [task.id, task]),
       );
       const next = orderedIds
-        .map((id, position) => {
-          const task = byId.get(id);
-          return task ? { ...task, position } : null;
-        })
-        .filter((task): task is Task => task !== null);
+        .map((id) => byId.get(id))
+        .filter((task): task is Task => task !== undefined);
       return [...others, ...next];
     });
-    const response = await fetch("/api/tasks/reorder", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ structure, orderedIds }),
-    });
-    if (!response.ok) {
-      setError("Could not save the new order.");
-      await refresh();
-    }
+    setDirty(true);
   }
 
   async function save(id: string, text: string) {
-    const response = await fetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (!response.ok) {
-      setError("Could not save edits.");
-      return;
-    }
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === id
+          ? {
+              ...task,
+              text,
+            }
+          : task,
+      ),
+    );
     setSelected(null);
-    await refresh();
+    setDirty(true);
   }
 
   async function remove(id: string) {
-    const response = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-    if (!response.ok) {
-      setError("Could not remove that task.");
-      return;
-    }
+    setTasks((current) => current.filter((task) => task.id !== id));
     setSelected(null);
-    await refresh();
+    setDirty(true);
   }
 
   async function logout() {
@@ -136,13 +165,25 @@ export function Board({ initialTasks }: Props) {
             subtask jumps the line.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={logout}
-          className="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5"
-        >
-          Log out
-        </button>
+        <div className="flex items-center gap-2">
+          {dirty ? (
+            <button
+              type="button"
+              onClick={persist}
+              disabled={saving}
+              className="rounded-xl bg-emerald-400 px-3 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {saving ? "Saving…" : "Save board"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5"
+          >
+            Log out
+          </button>
+        </div>
       </header>
 
       {error ? (
